@@ -48,6 +48,7 @@ func (s *server) secretSaveHandler(w http.ResponseWriter, r *http.Request) {
 	secret, err := s.services.Secret.Save(parameters.secret, parameters.expireAfterViews, parameters.expireAfter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	dataResponse(w, r, secret)
@@ -59,13 +60,15 @@ func (s *server) secretGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	secret, err := s.services.Secret.Get(hash)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "secret not found", http.StatusNotFound)
+		return
 	}
+
 	dataResponse(w, r, secret)
 }
 
 func dataResponse(w http.ResponseWriter, r *http.Request, data interface{}) {
-
+	// Extandable part
 	switch r.Header.Get("Accept") {
 	case "application/json":
 		err := json.NewEncoder(w).Encode(data)

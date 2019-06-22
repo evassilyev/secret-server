@@ -2,12 +2,12 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/evassilyev/secret-server/api/core"
 	"github.com/evassilyev/secret-server/api/dev"
 	"github.com/evassilyev/secret-server/api/pgdb"
+	"github.com/evassilyev/secret-server/api/redis"
 	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
 	"github.com/urfave/negroni"
@@ -51,33 +51,26 @@ func (s *server) initServices(v *viper.Viper) error {
 		return errors.New("no storage configuration found")
 	}
 
+	var err error
 	switch v.GetString("storage") {
 	case "dev":
 		s.services.Secret = dev.NewSecretService()
 	case "pgdb":
-		s.services.Secret = nil
-		if v.Get("pgdb") == nil {
-			return errors.New("no db configuration found")
-		}
-		urlKey := "pgdb.url"
-		maxIdleConnsKey := "pgdb.maxIdleConns"
-		maxOpenConnsKey := "pgdb.maxOpenConnsKey"
-		v.SetDefault(maxIdleConnsKey, 2)
-		v.SetDefault(maxOpenConnsKey, 0)
-		var err error
-
-		s.services.Secret, err = pgdb.NewSecretService(v.GetString(urlKey), v.GetInt(maxIdleConnsKey), v.GetInt(maxOpenConnsKey))
-		if err != nil {
-			return err
+		if v.Get("pgdb") != nil {
+			s.services.Secret, err = pgdb.NewSecretService(v.GetString("pgdb.url"), v.GetInt("pgdb.maxIdleConns"), v.GetInt("pgdb.maxOpenConnsKey"))
+		} else {
+			return errors.New("no postgres configuration found")
 		}
 	case "redis":
-		s.services.Secret = nil
-		// TODO
-		fmt.Println("REALIZE POSTGRES STORAGE")
+		if v.Get("redis") != nil {
+			s.services.Secret, err = redis.NewSecretService(v.GetString("redis.addr"), v.GetString("redis.password"), v.GetInt("redis.db"))
+		} else {
+			return errors.New("no redis configuration found")
+		}
 	default:
 		return errors.New("wrong storage configuration")
 	}
-	return nil
+	return err
 }
 
 func (s *server) initHandler() {

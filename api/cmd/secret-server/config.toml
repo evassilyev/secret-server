@@ -9,3 +9,6 @@ maxOpenConns = 0
 maxIdleConns = 2
 
 [redis]
+addr="localhost:6379"
+password = "secrets"
+db=0
