@@ -1,11 +1,15 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
+
 	"github.com/evassilyev/secret-server/api/core"
+	"github.com/evassilyev/secret-server/api/dev"
 	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
 	"github.com/urfave/negroni"
-	"net/http"
 )
 
 // Config of the application
@@ -18,15 +22,14 @@ type Config struct {
 
 // Services is a struct with implemented services
 type Services struct {
-	Storage core.StorageService
+	Secret core.SecretService
 }
 
 // server main application struct
 type server struct {
-	config      *Config
-	services    *Services
-	handler     http.Handler
-	apiHandlers map[string]http.HandlerFunc
+	config   *Config
+	services *Services
+	handler  http.Handler
 }
 
 func (s *server) initConfig(v *viper.Viper) {
@@ -38,16 +41,22 @@ func (s *server) initConfig(v *viper.Viper) {
 	s.config.Addr = v.GetString("addr")
 	s.config.Debug = v.GetBool("debug")
 	s.config.ApiPrefix = v.GetString("apiPrefix")
-	//s.config.StaticPath = v.GetString("staticPath")
 }
 
 func (s *server) initServices(v *viper.Viper) error {
 	s.services = new(Services)
 
-	// TODO add storage variability
+	if v.Get("storage") == nil {
+		return errors.New("no storage configuration found")
+	}
 
-	/*
-		if v.Get("db") == nil {
+	switch v.GetString("storage") {
+	case "dev":
+		s.services.Secret = dev.NewSecretService()
+	case "pgdb":
+		s.services.Secret = nil
+		// TODO
+		if v.Get("pgdb") == nil {
 			return errors.New("no db configuration found")
 		}
 
@@ -59,19 +68,19 @@ func (s *server) initServices(v *viper.Viper) error {
 
 		db := pgdb.NewDB(v.GetString(urlKey), v.GetInt(maxIdleConnsKey), v.GetInt(maxOpenConnsKey))
 
-		s.services.Storage = pgdb.NewStorageService(db)
-	*/
-
+		s.services.Secret = pgdb.NewSecretService(db)
+	case "redis":
+		s.services.Secret = nil
+		// TODO
+		fmt.Println("REALIZE POSTGRES STORAGE")
+	default:
+		return errors.New("Wrong storage configuration")
+	}
 	return nil
 }
 
 func (s *server) initHandler() {
 	mainRouter := mux.NewRouter()
-	/*
-		mainRouter.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, path.Join(s.config.StaticPath, "/index.html"))
-		})
-	*/
 	router := mainRouter.PathPrefix(s.config.ApiPrefix).Subrouter()
 	router.StrictSlash(true)
 
@@ -83,13 +92,6 @@ func (s *server) initHandler() {
 	recovery.PrintStack = s.config.Debug
 
 	handler := negroni.New(recovery, negroni.NewLogger() /*, s.CorsMiddleware()*/)
-	// Serving static files if configured
-	/*
-		if s.config.StaticPath != "" {
-			static := negroni.NewStatic(http.Dir(s.config.StaticPath))
-			handler.Use(static)
-		}
-	*/
 	handler.UseHandler(mainRouter)
 	s.handler = handler
 }
