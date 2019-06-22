@@ -7,11 +7,11 @@ import (
 )
 
 type Secret struct {
-	Hash           string
-	SecretText     string
-	CreatedAt      string
-	ExpiresAt      string
-	RemainingViews int
+	Hash           string `json:"hash" db:"hash"`
+	SecretText     string `json:"secretText" db:"secret_text"`
+	CreatedAt      string `json:"createdAt" db:"created_at"`
+	ExpiresAt      string `json:"expiresAt" db:"expires_at"`
+	RemainingViews int    `json:"remainingViews" db:"remaining_views"`
 }
 
 type SecretService interface {
@@ -20,6 +20,7 @@ type SecretService interface {
 }
 
 func NewSecret(secret string, eav, ea int) Secret {
+	// TODO case ea == 0
 	var res Secret
 	now := time.Now()
 	res.Hash = fmt.Sprintf("%x", md5.Sum([]byte(secret)))

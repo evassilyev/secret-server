@@ -7,6 +7,7 @@ import (
 
 	"github.com/evassilyev/secret-server/api/core"
 	"github.com/evassilyev/secret-server/api/dev"
+	"github.com/evassilyev/secret-server/api/pgdb"
 	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
 	"github.com/urfave/negroni"
@@ -55,26 +56,26 @@ func (s *server) initServices(v *viper.Viper) error {
 		s.services.Secret = dev.NewSecretService()
 	case "pgdb":
 		s.services.Secret = nil
-		// TODO
 		if v.Get("pgdb") == nil {
 			return errors.New("no db configuration found")
 		}
-
-		urlKey := "db.url"
-		maxIdleConnsKey := "db.maxIdleConns"
-		maxOpenConnsKey := "db.maxOpenConnsKey"
+		urlKey := "pgdb.url"
+		maxIdleConnsKey := "pgdb.maxIdleConns"
+		maxOpenConnsKey := "pgdb.maxOpenConnsKey"
 		v.SetDefault(maxIdleConnsKey, 2)
 		v.SetDefault(maxOpenConnsKey, 0)
+		var err error
 
-		db := pgdb.NewDB(v.GetString(urlKey), v.GetInt(maxIdleConnsKey), v.GetInt(maxOpenConnsKey))
-
-		s.services.Secret = pgdb.NewSecretService(db)
+		s.services.Secret, err = pgdb.NewSecretService(v.GetString(urlKey), v.GetInt(maxIdleConnsKey), v.GetInt(maxOpenConnsKey))
+		if err != nil {
+			return err
+		}
 	case "redis":
 		s.services.Secret = nil
 		// TODO
 		fmt.Println("REALIZE POSTGRES STORAGE")
 	default:
-		return errors.New("Wrong storage configuration")
+		return errors.New("wrong storage configuration")
 	}
 	return nil
 }
