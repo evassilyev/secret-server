@@ -20,6 +20,10 @@ func (s *server) secretSaveHandler(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
+	go func() {
+		s.mon.PostRequest <- true
+	}()
+
 	if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
 		http.Error(w, "Invalid input", http.StatusMethodNotAllowed)
 		return
@@ -58,6 +62,10 @@ func (s *server) secretGetHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	hash := vars["hash"]
 
+	go func() {
+		s.mon.GetRequest <- true
+	}()
+
 	secret, err := s.services.Secret.Get(hash)
 	if err != nil {
 		http.Error(w, "Secret not found", http.StatusNotFound)
@@ -68,7 +76,7 @@ func (s *server) secretGetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func dataResponse(w http.ResponseWriter, r *http.Request, data interface{}) {
-	// Extandable part
+	// Extendable part
 	switch r.Header.Get("Accept") {
 	case "application/json":
 		err := json.NewEncoder(w).Encode(data)

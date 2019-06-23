@@ -1,12 +1,22 @@
 package monitoring
 
 import (
-	"net/http"
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
+)
+
+// Metrics for collection
+var (
+	getRequestCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "secret_server_get_request_total",
+		Help: "The total number of get requests",
+	})
+	postRequestCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "secret_server_post_request_total",
+		Help: "The total number of post requests",
+	})
 )
 
 type PrometheusEndpoint struct {
@@ -27,10 +37,10 @@ func NewPrometheusEndpoint(endpoint, addr string) *PrometheusEndpoint {
 	}
 }
 
-func (p *PrometheusEndpoint) RunPrometheusEndpoint() error {
+func (p *PrometheusEndpoint) RunPrometheusEndpoint() {
 	p.recordMetrics()
 	http.Handle(p.endpoint, promhttp.Handler())
-	return http.ListenAndServe(p.addr, nil)
+	http.ListenAndServe(p.addr, nil)
 }
 
 func (p *PrometheusEndpoint) recordMetrics() {
@@ -42,19 +52,8 @@ func (p *PrometheusEndpoint) recordMetrics() {
 			case <-p.PostRequest:
 				postRequestCounter.Inc()
 			default:
-				time.Sleep(2 * time.Second)
+				//time.Sleep(2 * time.Second)
 			}
 		}
 	}()
 }
-
-var (
-	getRequestCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "secret_server_get_request_total",
-		Help: "The total number of successfully finished get requests",
-	})
-	postRequestCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "secret_server_post_request_total",
-		Help: "The total number of successfully finished post requests",
-	})
-)

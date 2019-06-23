@@ -101,7 +101,8 @@ func (s *server) runMonitoring(v *viper.Viper) error {
 		v.GetString("prometheus.endpoint"),
 		v.GetString("prometheus.addr"))
 
-	return s.mon.RunPrometheusEndpoint()
+	go s.mon.RunPrometheusEndpoint()
+	return nil
 }
 
 // NewApp is a viper based constructor for the application
