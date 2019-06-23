@@ -1,34 +1,36 @@
 package main
 
 import (
+	"errors"
+	"net/http"
+
 	"github.com/evassilyev/secret-server/api/core"
+	"github.com/evassilyev/secret-server/api/dev"
+	"github.com/evassilyev/secret-server/api/pgdb"
+	"github.com/evassilyev/secret-server/api/redis"
 	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
 	"github.com/urfave/negroni"
-	"net/http"
-	"path"
 )
 
 // Config of the application
 type Config struct {
-	Addr       string
-	Secret     string
-	Debug      bool
-	ApiPrefix  string
-	StaticPath string
+	Addr      string
+	Secret    string
+	Debug     bool
+	ApiPrefix string
 }
 
 // Services is a struct with implemented services
 type Services struct {
-	Storage core.StorageService
+	Secret core.SecretService
 }
 
 // server main application struct
 type server struct {
-	config      *Config
-	services    *Services
-	handler     http.Handler
-	apiHandlers map[string]http.HandlerFunc
+	config   *Config
+	services *Services
+	handler  http.Handler
 }
 
 func (s *server) initConfig(v *viper.Viper) {
@@ -36,59 +38,54 @@ func (s *server) initConfig(v *viper.Viper) {
 	// Fill default values
 	v.SetDefault("addr", ":8181")
 	v.SetDefault("apiPrefix", "/api")
-	v.SetDefault("accessTokenTTL", 15)
-	v.SetDefault("refreshTokenTTL", 30)
 
 	s.config.Addr = v.GetString("addr")
-	s.config.Secret = v.GetString("secret")
 	s.config.Debug = v.GetBool("debug")
 	s.config.ApiPrefix = v.GetString("apiPrefix")
-	s.config.StaticPath = v.GetString("staticPath")
 }
 
 func (s *server) initServices(v *viper.Viper) error {
 	s.services = new(Services)
 
-	// TODO add storage variability
-
-	if v.Get("db") == nil {
-		return errors.New("no db configuration found")
+	if v.Get("storage") == nil {
+		return errors.New("no storage configuration found")
 	}
 
-	urlKey := "db.url"
-	maxIdleConnsKey := "db.maxIdleConns"
-	maxOpenConnsKey := "db.maxOpenConnsKey"
-	v.SetDefault(maxIdleConnsKey, 2)
-	v.SetDefault(maxOpenConnsKey, 0)
-
-	db := pgdb.NewDB(v.GetString(urlKey), v.GetInt(maxIdleConnsKey), v.GetInt(maxOpenConnsKey))
-
-	s.services.Storage = pgdb.NewStorageService(db)
-
-	return nil
+	var err error
+	switch v.GetString("storage") {
+	case "dev":
+		s.services.Secret = dev.NewSecretService()
+	case "pgdb":
+		if v.Get("pgdb") != nil {
+			s.services.Secret, err = pgdb.NewSecretService(v.GetString("pgdb.url"), v.GetInt("pgdb.maxIdleConns"), v.GetInt("pgdb.maxOpenConnsKey"))
+		} else {
+			return errors.New("no postgres configuration found")
+		}
+	case "redis":
+		if v.Get("redis") != nil {
+			s.services.Secret = redis.NewSecretService(v.GetString("redis.addr"), v.GetString("redis.password"), v.GetInt("redis.db"))
+		} else {
+			return errors.New("no redis configuration found")
+		}
+	default:
+		return errors.New("wrong storage configuration")
+	}
+	return err
 }
 
 func (s *server) initHandler() {
 	mainRouter := mux.NewRouter()
-	mainRouter.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, path.Join(s.config.StaticPath, "/index.html"))
-	})
 	router := mainRouter.PathPrefix(s.config.ApiPrefix).Subrouter()
 	router.StrictSlash(true)
 
-	router.HandleFunc("/secret", s.SecretSaveHandler).Methods(http.MethodPost)
-	router.HandleFunc("/secret/{hash}", s.SecretGetHandler).Methods(http.MethodGet)
+	router.HandleFunc("/secret", s.secretSaveHandler).Methods(http.MethodPost)
+	router.HandleFunc("/secret/{hash}", s.secretGetHandler).Methods(http.MethodGet)
 
 	// Standard middleware
 	recovery := negroni.NewRecovery()
 	recovery.PrintStack = s.config.Debug
 
-	handler := negroni.New(recovery, negroni.NewLogger(), s.CorsMiddleware())
-	// Serving static files if configured
-	if s.config.StaticPath != "" {
-		static := negroni.NewStatic(http.Dir(s.config.StaticPath))
-		handler.Use(static)
-	}
+	handler := negroni.New(recovery, negroni.NewLogger() /*, s.CorsMiddleware()*/)
 	handler.UseHandler(mainRouter)
 	s.handler = handler
 }

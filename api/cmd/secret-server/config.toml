@@ -1,0 +1,14 @@
+apiPrefix="/"
+
+# pgdb - PostgreSQL, redis - redis.io, dev - development realisation
+storage = "redis"
+
+[pgdb]
+url = "postgres://secrets:secrets@localhost:5432/secrets?sslmode=disable"
+maxOpenConns = 0
+maxIdleConns = 2
+
+[redis]
+addr="localhost:6379"
+password = "secrets"
+db=0
