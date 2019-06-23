@@ -60,7 +60,7 @@ func (s *server) secretGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	secret, err := s.services.Secret.Get(hash)
 	if err != nil {
-		http.Error(w, "secret not found", http.StatusNotFound)
+		http.Error(w, "Secret not found", http.StatusNotFound)
 		return
 	}
 
