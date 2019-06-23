@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -18,7 +19,15 @@ func (s *server) secretSaveHandler(w http.ResponseWriter, r *http.Request) {
 		expireAfter      int
 	}
 
-	defer r.Body.Close()
+	beginTime := time.Now()
+	defer func() {
+		r.Body.Close()
+		go func() { s.mon.PostRequestRT <- time.Since(beginTime) }()
+	}()
+
+	go func() {
+		s.mon.PostRequest <- true
+	}()
 
 	if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
 		http.Error(w, "Invalid input", http.StatusMethodNotAllowed)
@@ -58,6 +67,15 @@ func (s *server) secretGetHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	hash := vars["hash"]
 
+	beginTime := time.Now()
+	defer func() {
+		go func() { s.mon.GetRequestRT <- time.Since(beginTime) }()
+	}()
+
+	go func() {
+		s.mon.GetRequest <- true
+	}()
+
 	secret, err := s.services.Secret.Get(hash)
 	if err != nil {
 		http.Error(w, "Secret not found", http.StatusNotFound)
@@ -68,7 +86,7 @@ func (s *server) secretGetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func dataResponse(w http.ResponseWriter, r *http.Request, data interface{}) {
-	// Extandable part
+	// Extendable part
 	switch r.Header.Get("Accept") {
 	case "application/json":
 		err := json.NewEncoder(w).Encode(data)
