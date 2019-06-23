@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -18,7 +19,11 @@ func (s *server) secretSaveHandler(w http.ResponseWriter, r *http.Request) {
 		expireAfter      int
 	}
 
-	defer r.Body.Close()
+	beginTime := time.Now()
+	defer func() {
+		r.Body.Close()
+		go func() { s.mon.PostRequestRT <- time.Since(beginTime) }()
+	}()
 
 	go func() {
 		s.mon.PostRequest <- true
@@ -61,6 +66,11 @@ func (s *server) secretSaveHandler(w http.ResponseWriter, r *http.Request) {
 func (s *server) secretGetHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	hash := vars["hash"]
+
+	beginTime := time.Now()
+	defer func() {
+		go func() { s.mon.GetRequestRT <- time.Since(beginTime) }()
+	}()
 
 	go func() {
 		s.mon.GetRequest <- true

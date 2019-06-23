@@ -19,54 +19,40 @@ var (
 		Name: "secret_server_post_request_total",
 		Help: "The total number of post requests",
 	})
-	getRequestResponseHistogram = promauto.NewHistogram(prometheus.HistogramOpts{
-		Name:    "get_request_response_time",
-		Help:    "Get requests responce time histogram",
-		Buckets: []float64{0.5, 1, 2, 3, 5, 10},
+	getRequestResponseSummary = promauto.NewSummary(prometheus.SummaryOpts{
+		Name:       "get_request_response_time_sm",
+		Help:       "Get requests responce time summary",
+		Objectives: map[float64]float64{0.5: 0.05, 0.95: 0.004, 0.99: 0.001},
 	})
-	postRequestResponseHistogram = promauto.NewHistogram(prometheus.HistogramOpts{
-		Name:    "post_request_response_time",
-		Help:    "Post requests responce time histogram",
-		Buckets: []float64{0.5, 1, 2, 3, 5, 10},
+	postRequestResponseSummary = promauto.NewSummary(prometheus.SummaryOpts{
+		Name:       "post_request_response_time_sm",
+		Help:       "Post requests responce time summary",
+		Objectives: map[float64]float64{0.5: 0.05, 0.95: 0.004, 0.99: 0.001},
 	})
 )
 
 // TODO remove unused
 type PrometheusEndpoint struct {
-	PostRequest                    chan bool
-	GetRequest                     chan bool
-	PostRequestRT                  chan time.Duration
-	GetRequestRT                   chan time.Duration
-	GetRequestRTMetrics            chan prometheus.Metric
-	PostRequestRTMetrics           chan prometheus.Metric
-	endpoint                       string
-	addr                           string
-	PostRequestsResponseTimeBuffer *BufferStorage
-	GetRequestsResponseTimeBuffer  *BufferStorage
+	PostRequest   chan bool
+	GetRequest    chan bool
+	PostRequestRT chan time.Duration
+	GetRequestRT  chan time.Duration
+	endpoint      string
+	addr          string
 }
-
-const responce_time_buffer_size = 1000
 
 func NewPrometheusEndpoint(endpoint, addr string) *PrometheusEndpoint {
 	prch := make(chan bool)
 	grch := make(chan bool)
 	prrtch := make(chan time.Duration)
 	grrtch := make(chan time.Duration)
-	prrtmch := make(chan prometheus.Metric)
-	grrtmch := make(chan prometheus.Metric)
-	prtb := NewBufferStorage(responce_time_buffer_size)
-	grtb := NewBufferStorage(responce_time_buffer_size)
 	return &PrometheusEndpoint{
-		PostRequest:                    prch,
-		GetRequest:                     grch,
-		endpoint:                       endpoint,
-		addr:                           addr,
-		PostRequestsResponseTimeBuffer: prtb,
-		GetRequestsResponseTimeBuffer:  grtb,
-		PostRequestRT:                  prrtch,
-		GetRequestRT:                   grrtch,
-		PostRequestRTMetrics:           prrtmch,
-		GetRequestRTMetrics:            grrtmch,
+		PostRequest:   prch,
+		GetRequest:    grch,
+		endpoint:      endpoint,
+		addr:          addr,
+		PostRequestRT: prrtch,
+		GetRequestRT:  grrtch,
 	}
 }
 
@@ -86,9 +72,9 @@ func (p *PrometheusEndpoint) recordMetrics() {
 			case <-p.PostRequest:
 				postRequestCounter.Inc()
 			case v = <-p.GetRequestRT:
-				getRequestResponseHistogram.Observe(float64(v))
+				getRequestResponseSummary.Observe(float64(v))
 			case v = <-p.PostRequestRT:
-				postRequestResponseHistogram.Observe(float64(v))
+				postRequestResponseSummary.Observe(float64(v))
 			default:
 				//time.Sleep(2 * time.Second)
 			}
