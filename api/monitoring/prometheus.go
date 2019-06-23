@@ -31,7 +31,6 @@ var (
 	})
 )
 
-// TODO remove unused
 type PrometheusEndpoint struct {
 	PostRequest   chan bool
 	GetRequest    chan bool
