@@ -12,3 +12,7 @@ maxIdleConns = 2
 addr="localhost:6379"
 password = "secrets"
 db=0
+
+[prometheus]
+endpoint = "/metrics"
+addr = ":2112"

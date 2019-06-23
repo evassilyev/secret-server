@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/evassilyev/secret-server/api/monitoring"
+
 	"github.com/evassilyev/secret-server/api/core"
 	"github.com/evassilyev/secret-server/api/dev"
 	"github.com/evassilyev/secret-server/api/pgdb"
@@ -31,6 +33,7 @@ type server struct {
 	config   *Config
 	services *Services
 	handler  http.Handler
+	mon      *monitoring.PrometheusEndpoint
 }
 
 func (s *server) initConfig(v *viper.Viper) {
@@ -90,12 +93,27 @@ func (s *server) initHandler() {
 	s.handler = handler
 }
 
+func (s *server) runMonitoring(v *viper.Viper) error {
+	if v.Get("prometheus") == nil {
+		return errors.New("no monitoring configuration found")
+	}
+	s.mon = monitoring.NewPrometheusEndpoint(
+		v.GetString("prometheus.endpoint"),
+		v.GetString("prometheus.addr"))
+
+	return s.mon.RunPrometheusEndpoint()
+}
+
 // NewApp is a viper based constructor for the application
 func ListenAndServe(v *viper.Viper) error {
 	var err error
 	s := new(server)
 	s.initConfig(v)
 	err = s.initServices(v)
+	if err != nil {
+		return err
+	}
+	err = s.runMonitoring(v)
 	if err != nil {
 		return err
 	}
