@@ -30,7 +30,7 @@ func (c *secretRedisType) MarshalBinary() (data []byte, err error) {
 }
 
 func counterKey(hash string) string {
-	counterKey := fmt.Sprintf("%s_counter", hash)
+	return fmt.Sprintf("%s_counter", hash)
 }
 
 func (s *secretService) Save(secret string, eav, ea int) (core.Secret, error) {
@@ -44,7 +44,6 @@ func (s *secretService) Save(secret string, eav, ea int) (core.Secret, error) {
 	}
 	err = s.redis.Set(ns.Hash, &srt, time.Duration(ea)*time.Minute).Err()
 	if err != nil {
-		fmt.Println(err)
 		return core.Secret{}, err
 	}
 
@@ -57,13 +56,52 @@ func (s *secretService) Save(secret string, eav, ea int) (core.Secret, error) {
 	return core.Secret(sr), err
 }
 
-func (s *secretService) Get(hash string) (core.Secret, error) {
-	ck := counterKey(hash)
-	cmd := s.redis.Get(hash)
-	if cmd.Err() != nil {
-		return core.Secret{}, cmd.Err()
+// TODO add transaction
+func (s *secretService) Get(hash string) (res core.Secret, err error) {
+
+	counterKey := counterKey(hash)
+	err = s.redis.Decr(counterKey).Err()
+	if err != nil {
+		return
 	}
+	cmd := s.redis.Get(counterKey)
+	err = cmd.Err()
+	if err != nil {
+		return
+	}
+	remViews, err := cmd.Int()
+	if err != nil {
+		return
+	}
+
 	var sr secretRedisType
-	err := cmd.Scan(&sr)
-	return core.Secret(sr), err
+	cmd = s.redis.Get(hash)
+	err = cmd.Err()
+	if err != nil {
+		return
+	}
+	err = cmd.Scan(&sr)
+	if err != nil {
+		return
+	}
+	sr.RemainingViews = remViews
+
+	if remViews <= 0 {
+		err = s.redis.Del(hash, counterKey).Err()
+		if err != nil {
+			return
+		}
+	} else {
+		ttl := s.redis.TTL(hash)
+		err = ttl.Err()
+		if err != nil {
+			return
+		}
+		err = s.redis.Set(hash, &sr, ttl.Val()).Err()
+		if err != nil {
+			return
+		}
+	}
+	res = core.Secret(sr)
+	return
 }
