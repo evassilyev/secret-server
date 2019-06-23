@@ -63,7 +63,7 @@ func (s *server) initServices(v *viper.Viper) error {
 		}
 	case "redis":
 		if v.Get("redis") != nil {
-			s.services.Secret, err = redis.NewSecretService(v.GetString("redis.addr"), v.GetString("redis.password"), v.GetInt("redis.db"))
+			s.services.Secret = redis.NewSecretService(v.GetString("redis.addr"), v.GetString("redis.password"), v.GetInt("redis.db"))
 		} else {
 			return errors.New("no redis configuration found")
 		}

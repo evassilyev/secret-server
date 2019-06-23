@@ -1,7 +1,7 @@
 apiPrefix="/"
 
 # pgdb - PostgreSQL, redis - redis.io, dev - development realisation
-storage = "pgdb"
+storage = "redis"
 
 [pgdb]
 url = "postgres://secrets:secrets@localhost:5432/secrets?sslmode=disable"

@@ -12,4 +12,3 @@ CREATE TABLE IF NOT EXISTS secrets
 CREATE INDEX IF NOT EXISTS hash_ind ON secrets (hash);
 
 ALTER TABLE secrets OWNER TO secrets;
-

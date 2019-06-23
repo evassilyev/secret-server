@@ -21,13 +21,16 @@ type SecretService interface {
 }
 
 func NewSecret(secret string, eav, ea int) Secret {
-	// TODO case ea == 0
 	var res Secret
 	now := time.Now()
 	res.Hash = fmt.Sprintf("%x", md5.Sum([]byte(uuid.New().String())))
 	res.SecretText = secret
 	res.RemainingViews = eav
-	res.CreatedAt = now.String()
-	res.ExpiresAt = now.Add(time.Duration(ea) * time.Minute).String()
+	res.CreatedAt = now.Format(time.RFC3339)
+	if ea == 0 {
+		res.ExpiresAt = "9999-12-31T23:59:59Z" //time.RFC3339 format
+	} else {
+		res.ExpiresAt = now.Add(time.Duration(ea) * time.Minute).Format(time.RFC3339)
+	}
 	return res
 }

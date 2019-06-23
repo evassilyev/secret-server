@@ -2,10 +2,13 @@ package pgdb
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"github.com/evassilyev/secret-server/api/core"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"time"
 )
 
 func NewSecretService(url string, mic, moc int) (core.SecretService, error) {
@@ -76,13 +79,30 @@ func (s *secretService) Get(hash string) (secret core.Secret, err error) {
 		RETURNING id, hash, secret_text, created_at, expires_at, remaining_views`
 	err = tx.Get(&dbs, q, hash)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 
-	if dbs.RemainingViews <= 0 {
+	exptime, err := time.Parse(time.RFC3339, dbs.ExpiresAt)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	expired := exptime.Before(time.Now())
+
+	if dbs.RemainingViews <= 0 || expired {
 		deleteq := `DELETE FROM secrets WHERE id=$1`
 		_, err = tx.Exec(deleteq, dbs.Id)
+		if err != nil {
+			return
+		}
+		if expired {
+			err = errors.New("secret expired")
+			return
+		}
 	}
+
 	secret = dbs.toCoreSecret()
 	return
 }
